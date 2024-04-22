@@ -22,6 +22,9 @@
 # A single solenoid switch is therefore intended to drive an h-bridge using at least 2 float
 # GPIOs per solenoid output.
 
+# Configurations using only a FET (ie low-side switch), single GPIO, and second connection
+# tied to ground are also possible (& planned for a future release).
+
 # Background:
 
 # The 3 main types of irrigation solenoid (not counting generic 'ac/dc' units), and their
