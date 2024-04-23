@@ -25,6 +25,7 @@ class SolenoidSwitch : public switch_::Switch, public Component {
   void set_hold_power_percent(float hold_power_percent) { this->hold_power_percent_ = hold_power_percent; }
   void set_dc_latch_redo_count(uint8_t dc_latch_redo_count) { this->dc_latch_redo_count_ = dc_latch_redo_count; }
   void set_dc_latch_redo_interval(uint16_t dc_latch_redo_interval_ms) { this->dc_latch_redo_interval_ms_ = dc_latch_redo_interval_ms; }
+  void set_half_bridge(bool using_half_bridge) { this->using_half_bridge_ = using_half_bridge; }
 
   // float get_setup_priority() const override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
@@ -50,6 +51,7 @@ class SolenoidSwitch : public switch_::Switch, public Component {
   uint16_t dc_latch_redo_interval_ms_;
 
   bool inverted_;
+  bool using_half_bridge_;
 
   std::vector<Switch *> interlock_;
   uint32_t interlock_wait_time_{0};

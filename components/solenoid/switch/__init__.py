@@ -1,3 +1,5 @@
+# Overview
+
 # This component is intended to simplify driving the main 3 different types
 # of sprinkler solenoids used in irrigation systems.
 
@@ -160,6 +162,7 @@ CONF_BRAKE_IS_HIGH = "brake_is_high"
 CONF_BRIDGE_ENABLE_PIN = "h_bridge_enable_pin"
 CONF_DC_LATCH_REDO_COUNT = "dc_latch_redo_count"
 CONF_DC_LATCH_REDO_INTERVAL_MS = "dc_latch_redo_interval_ms"
+CONF_USING_HALF_BRIDGE = "using_half_bridge"
 
 CONFIG_SCHEMA = (
     switch.switch_schema(SolenoidSwitch)
@@ -179,6 +182,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_INTERLOCK_WAIT_TIME, default="0ms"): cv.positive_time_period_milliseconds,
             cv.Required(CONF_BRAKE_IS_HIGH): cv.boolean,
             cv.Optional(CONF_INVERTED, default=False): cv.boolean,
+            cv.Optional(CONF_USING_HALF_BRIDGE, default=False): cv.boolean,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -209,6 +213,7 @@ async def to_code(config):
     cg.add(solenoid_switch.set_dc_latch_redo_count(config[CONF_DC_LATCH_REDO_COUNT]))
     cg.add(solenoid_switch.set_dc_latch_redo_interval(config[CONF_DC_LATCH_REDO_INTERVAL_MS]))
     cg.add(solenoid_switch.set_inverted(config[CONF_INVERTED]))
+    cg.add(solenoid_switch.set_half_bridge(config[CONF_USING_HALF_BRIDGE]))
 
     if CONF_INTERLOCK in config:
         interlock = []
