@@ -142,8 +142,6 @@ from esphome.const import (
     CONF_INVERTED,
 )
 
-# MULTI_CONF = True
-
 SolenoidSwitch = solenoid_ns.class_("SolenoidSwitch", switch.Switch, cg.Component)
 
 SolenoidType = solenoid_ns.enum("SolenoidType")
@@ -164,28 +162,49 @@ CONF_DC_LATCH_REDO_COUNT = "dc_latch_redo_count"
 CONF_DC_LATCH_REDO_INTERVAL_MS = "dc_latch_redo_interval_ms"
 CONF_USING_HALF_BRIDGE = "using_half_bridge"
 
-CONFIG_SCHEMA = (
+# Explicitly asking for either PIN_B or USING_HALF_BRIDGE to be defined so as to avoid accidental
+# misconfiguration, plus makes the logic a teensy bit less convoluted.
+
+def validate_dc_latching_solenoid(config):
+    if config[CONF_SOLENOID_TYPE] == "DC_LATCHING":
+        if config[CONF_USING_HALF_BRIDGE] == True:
+            raise cv.Invalid("DC Latching Solenoid can't use a half-bridge as it requires a full h-bridge in order to reverse pulse polarity.")
+        if CONF_PIN_B not in config:
+            raise cv.Invalid("DC Latching Solenoid requires " + CONF_PIN_B + " to be defined.")
+    return config
+
+def validate_pin_b_and_half_bridge_combo(config):
+    if CONF_USING_HALF_BRIDGE in config and config[CONF_USING_HALF_BRIDGE] == True and CONF_PIN_B in config:
+        raise cv.Invalid("Cannot be using a half-bridge AND have " + CONF_PIN_B + " defined. Choose one or the other please.")
+    if CONF_USING_HALF_BRIDGE in config and config[CONF_USING_HALF_BRIDGE] == False and CONF_PIN_B not in config:
+        raise cv.Invalid("Must be either using a half-bridge OR have " + CONF_PIN_B + " defined. Choose only one of the two please.")
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     switch.switch_schema(SolenoidSwitch)
     .extend(
         {
             cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(SolenoidSwitch),
             cv.Required(CONF_PIN_A): cv.use_id(output.FloatOutput),
-            cv.Required(CONF_PIN_B): cv.use_id(output.BinaryOutput),
+            cv.Optional(CONF_PIN_B): cv.use_id(output.BinaryOutput),
             cv.Optional(CONF_BRIDGE_ENABLE_PIN): cv.use_id(output.BinaryOutput),
             cv.Required(CONF_ENERGISE_DURATION_MS): cv.int_range(min=10, max=3000),
             cv.Optional(CONF_DC_LATCH_REDO_COUNT, default = 3): cv.int_range(min=1, max=5),
             cv.Optional(CONF_DC_LATCH_REDO_INTERVAL_MS, default=500): cv.int_range(min=500, max=3000),
-            cv.Required(CONF_ENERGISE_POWER_PERCENT): cv.percentage,
-            cv.Required(CONF_HOLD_POWER_PERCENT): cv.percentage,
+            cv.Optional(CONF_ENERGISE_POWER_PERCENT, default = "95%"): cv.percentage,
+            cv.Optional(CONF_HOLD_POWER_PERCENT, default = "55%"): cv.percentage,
             cv.Required(CONF_SOLENOID_TYPE): cv.enum(SOLENOID_TYPE_OPTIONS, upper=True),
-            cv.Optional(CONF_INTERLOCK): cv.ensure_list(cv.use_id(switch.Switch)),
-            cv.Optional(CONF_INTERLOCK_WAIT_TIME, default="0ms"): cv.positive_time_period_milliseconds,
             cv.Required(CONF_BRAKE_IS_HIGH): cv.boolean,
             cv.Optional(CONF_INVERTED, default=False): cv.boolean,
-            cv.Optional(CONF_USING_HALF_BRIDGE, default=False): cv.boolean,
+            cv.Optional(CONF_USING_HALF_BRIDGE, default = False): cv.boolean,
+            cv.Optional(CONF_INTERLOCK): cv.ensure_list(cv.use_id(switch.Switch)),
+            cv.Optional(CONF_INTERLOCK_WAIT_TIME, default="0ms"): cv.positive_time_period_milliseconds,
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA),
+    validate_dc_latching_solenoid,
+    validate_pin_b_and_half_bridge_combo
 )
 
 
@@ -196,23 +215,23 @@ async def to_code(config):
     bridge_a_side_id = await cg.get_variable(config[CONF_PIN_A])
     cg.add(solenoid_switch.connect_a_pin(bridge_a_side_id))
 
-    bridge_b_side_id = await cg.get_variable(config[CONF_PIN_B])
-    cg.add(solenoid_switch.connect_b_pin(bridge_b_side_id))
+    if CONF_PIN_B in config:
+        bridge_b_side_id = await cg.get_variable(config[CONF_PIN_B])
+        cg.add(solenoid_switch.connect_b_pin(bridge_b_side_id))
 
     if CONF_BRIDGE_ENABLE_PIN in config:
         bridge_enable_pin_id = await cg.get_variable(config[CONF_BRIDGE_ENABLE_PIN])
         cg.add(solenoid_switch.connect_enable_pin(bridge_enable_pin_id))
 
-    # solenoid_type = await cg.get_variable(config[CONF_SOLENOID_TYPE])
-    # cg.add(solenoid_switch.set_solenoid_type(solenoid_type))
-    cg.add(solenoid_switch.set_solenoid_type(config[CONF_SOLENOID_TYPE]))
-    cg.add(solenoid_switch.set_brake(config[CONF_BRAKE_IS_HIGH]))
     cg.add(solenoid_switch.set_energise_duration_ms(config[CONF_ENERGISE_DURATION_MS]))
-    cg.add(solenoid_switch.set_energise_power_percent(config[CONF_ENERGISE_POWER_PERCENT]))
-    cg.add(solenoid_switch.set_hold_power_percent(config[CONF_HOLD_POWER_PERCENT]))
     cg.add(solenoid_switch.set_dc_latch_redo_count(config[CONF_DC_LATCH_REDO_COUNT]))
     cg.add(solenoid_switch.set_dc_latch_redo_interval(config[CONF_DC_LATCH_REDO_INTERVAL_MS]))
+    cg.add(solenoid_switch.set_energise_power_percent(config[CONF_ENERGISE_POWER_PERCENT]))
+    cg.add(solenoid_switch.set_hold_power_percent(config[CONF_HOLD_POWER_PERCENT]))
+    cg.add(solenoid_switch.set_solenoid_type(config[CONF_SOLENOID_TYPE]))
+    cg.add(solenoid_switch.set_brake(config[CONF_BRAKE_IS_HIGH]))
     cg.add(solenoid_switch.set_inverted(config[CONF_INVERTED]))
+    # if CONF_USING_HALF_BRIDGE in config: - not necessary as it has a default value
     cg.add(solenoid_switch.set_half_bridge(config[CONF_USING_HALF_BRIDGE]))
 
     if CONF_INTERLOCK in config:

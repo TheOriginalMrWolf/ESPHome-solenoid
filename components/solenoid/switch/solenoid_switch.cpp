@@ -45,6 +45,8 @@ void SolenoidSwitch::dump_config() {
       break;
   }
 
+  ESP_LOGCONFIG(TAG, "B-pin %sdefined", this->b_pin_binary_ ? "" : "not ");
+  ESP_LOGCONFIG(TAG, "%ssing half-bridge", this->using_half_bridge_ ? "U" : "Not u");
   ESP_LOGCONFIG(TAG, "Enable pin %sdefined", this->enable_pin_binary_ ? "" : "not ");
   ESP_LOGCONFIG(TAG, "Brake is %s", this->brake_is_high_ ? "high" : "low");
   ESP_LOGCONFIG(TAG, "Energise duration: %ums", this->energise_duration_ms_);
@@ -114,8 +116,8 @@ void SolenoidSwitch::control_ac_dc_solenoid(bool state) {
 
   // Turn On
   if (state) {
-    this->b_pin_binary_->set_state(this->brake_is_high_);                                                                       // set the brake pin
     this->a_pin_float_->set_level(this->brake_is_high_ ? 1.0 - this->energise_power_percent_ : this->energise_power_percent_);  // set the 'drive' pin - inverting waveform as necessary
+    if (this->b_pin_binary_) { this->b_pin_binary_->set_state(this->brake_is_high_); }                                                                      // set the brake pin
 
     if (this->enable_pin_binary_) {  // aaaand.. enable... if it has one
       this->enable_pin_binary_->set_state(state);
@@ -130,11 +132,12 @@ void SolenoidSwitch::control_ac_dc_solenoid(bool state) {
   }
 
   // Turn Off
-  bool off_level = !this->brake_is_high_;
+  bool off_level = this->using_half_bridge_ ? this->brake_is_high_ : !this->brake_is_high_;
+  ESP_LOGD("AC DRIVER", "Off level is: %s", off_level ? "high" : "low" );
   if (this->enable_pin_binary_) {
     this->enable_pin_binary_->set_state(state);
   }
-  this->b_pin_binary_->set_state(off_level);
+  if (this->b_pin_binary_) { this->b_pin_binary_->set_state(off_level); }
   this->a_pin_float_->set_level(off_level);
 }
 
@@ -150,6 +153,7 @@ void SolenoidSwitch::control_dc_latching_solenoid(bool state) {
   // kick the solenoid to on or off position
   ESP_LOGD("DC-LATCH", "Turning DC solenoid %s. On level: %f, off level %f", state ? "on" : "off", dc_latch_on_level_, dc_latch_off_level_);
 
+  // Don't need to check for existence of B pin as that is mandatory for DC_LATCHING
   if (state) {
     this->a_pin_float_->set_level(dc_latch_on_level_);
     this->b_pin_binary_->set_state(dc_latch_off_level_);
